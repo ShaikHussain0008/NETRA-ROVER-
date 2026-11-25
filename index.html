@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NETRA GCS — Ground Control Station</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- SHOWCASE PORTAL                                        -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="showcase-portal">
+    <div id="showcase-canvas-container">
+      <canvas id="showcase-canvas"></canvas>
+    </div>
+
+    <div id="spec-cards-left">
+      <div class="spec-card">
+        <div class="spec-card-title">Dimensions</div>
+        <div class="spec-card-value mono">1200 × 800 × 600</div>
+        <div class="spec-card-unit">mm (L × W × H)</div>
+      </div>
+      <div class="spec-card">
+        <div class="spec-card-title">Weight</div>
+        <div class="spec-card-value mono">45</div>
+        <div class="spec-card-unit">kg (dry mass)</div>
+      </div>
+      <div class="spec-card">
+        <div class="spec-card-title">Powertrain</div>
+        <div class="spec-card-value mono">4 × BLDC 200 W</div>
+        <div class="spec-card-unit">800 W peak output</div>
+      </div>
+    </div>
+
+    <div id="spec-cards-right">
+      <div class="spec-card">
+        <div class="spec-card-title">Max Speed</div>
+        <div class="spec-card-value mono">2.5</div>
+        <div class="spec-card-unit">m/s</div>
+      </div>
+      <div class="spec-card">
+        <div class="spec-card-title">Sensors</div>
+        <div class="spec-card-value mono">LiDAR · IMU · GNSS</div>
+        <div class="spec-card-unit">4 × Camera Array</div>
+      </div>
+    </div>
+
+    <div id="showcase-title">
+      <h1>NETRA <span>GCS</span></h1>
+      <p>Autonomous Ground Rover Platform</p>
+    </div>
+
+    <button id="enter-mission-btn">ENTER MISSION CONTROL ▶</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- GCS APPLICATION                                        -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="gcs-app" class="hidden">
+
+    <!-- ── Top Header ──────────────────────────────────────── -->
+    <header id="top-header">
+      <div class="header-brand">
+        <svg class="brand-icon" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#f59e0b" stroke-width="1.8">
+          <circle cx="12" cy="12" r="10"/><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="3.5" fill="#f59e0b" stroke="none"/>
+        </svg>
+        <span class="brand-name">NETRA <span class="brand-accent">GCS</span></span>
+      </div>
+
+      <div class="header-status">
+        <div class="status-node" id="status-comms">
+          <span class="status-dot dot-green"></span>
+          <span class="status-label">COMMS</span>
+          <span class="status-value mono">UDP 5.8 GHz · <span id="comms-latency">22</span> ms</span>
+        </div>
+        <div class="status-node" id="status-gnss">
+          <span class="status-dot dot-green"></span>
+          <span class="status-label">GNSS</span>
+          <span class="status-value mono">RTK Fixed · <span id="gnss-sats">15</span> sats</span>
+        </div>
+        <div class="status-node" id="status-power">
+          <span class="status-dot dot-green"></span>
+          <span class="status-label">BUS</span>
+          <span class="status-value mono"><span id="bus-voltage">24.8</span> V 6S</span>
+        </div>
+        <div class="status-node" id="status-met">
+          <span class="status-label">MET</span>
+          <span class="status-value mono" id="met-value">T+00:00:00</span>
+        </div>
+        <div class="status-node" id="status-utc">
+          <span class="status-label">UTC</span>
+          <span class="status-value mono" id="utc-value">--:--:--</span>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <select id="nav-mode-select" title="Navigation Mode">
+          <option value="MANUAL">MANUAL</option>
+          <option value="HOLD">HOLD</option>
+          <option value="AUTO">AUTO</option>
+          <option value="GUIDED" selected>GUIDED</option>
+          <option value="RTL">RTL</option>
+        </select>
+        <button id="arm-btn" class="ctrl-btn btn-arm">DISARMED</button>
+        <button id="estop-btn" class="ctrl-btn btn-estop">E-STOP</button>
+        <button id="showcase-return-btn" class="ctrl-btn btn-util">3D</button>
+        <button id="fullscreen-btn" class="ctrl-btn btn-util" title="Fullscreen">⛶</button>
+      </div>
+    </header>
+
+    <!-- ── Side Navigation ─────────────────────────────────── -->
+    <nav id="side-nav">
+      <button class="nav-tab active" data-tab="cockpit"><span class="nav-icon">◎</span><span class="nav-label">Cockpit</span></button>
+      <button class="nav-tab" data-tab="twin"><span class="nav-icon">⬡</span><span class="nav-label">3D Model</span></button>
+      <button class="nav-tab" data-tab="optics"><span class="nav-icon">◉</span><span class="nav-label">Optics</span></button>
+      <button class="nav-tab" data-tab="tactical"><span class="nav-icon">◇</span><span class="nav-label">Tactical</span></button>
+      <button class="nav-tab" data-tab="power"><span class="nav-icon">⚡</span><span class="nav-label">Power</span></button>
+      <button class="nav-tab" data-tab="logs"><span class="nav-icon">☰</span><span class="nav-label">Logs</span></button>
+      <button class="nav-tab" data-tab="config"><span class="nav-icon">⚙</span><span class="nav-label">Config</span></button>
+    </nav>
+
+    <!-- ── Workspace ───────────────────────────────────────── -->
+    <main id="workspace">
+
+      <!-- COCKPIT ─────────────────────────────────────────── -->
+      <section id="tab-cockpit" class="tab-content active">
+
+        <!-- KPI Strip -->
+        <div class="kpi-strip">
+          <div class="kpi-card" id="kpi-speed">
+            <div class="kpi-label">Ground Speed</div>
+            <div class="kpi-value mono" id="kpi-speed-val">0.00</div>
+            <div class="kpi-unit">m/s</div>
+          </div>
+          <div class="kpi-card" id="kpi-current">
+            <div class="kpi-label">Current Draw</div>
+            <div class="kpi-value mono" id="kpi-current-val">0.0</div>
+            <div class="kpi-unit">A</div>
+          </div>
+          <div class="kpi-card" id="kpi-heading">
+            <div class="kpi-label">Heading</div>
+            <div class="kpi-value mono" id="kpi-heading-val">000°</div>
+            <div class="kpi-unit">true</div>
+          </div>
+          <div class="kpi-card" id="kpi-attitude">
+            <div class="kpi-label">Attitude</div>
+            <div class="kpi-value mono" id="kpi-attitude-val">P 0.0 R 0.0</div>
+            <div class="kpi-unit">degrees</div>
+          </div>
+          <div class="kpi-card" id="kpi-waypoint">
+            <div class="kpi-label">Next Waypoint</div>
+            <div class="kpi-value mono" id="kpi-waypoint-val">WP-01</div>
+            <div class="kpi-unit">-- m</div>
+          </div>
+        </div>
+
+        <!-- Main Panels -->
+        <div class="cockpit-panels">
+
+          <!-- PFD -->
+          <div class="panel pfd-panel">
+            <div class="panel-header">Primary Flight Display</div>
+            <div class="panel-body">
+              <svg id="pfd-svg" viewBox="0 0 400 400"></svg>
+              <div class="velocity-controls">
+                <div class="dpad">
+                  <button class="dpad-btn" data-direction="forward">▲</button>
+                  <button class="dpad-btn" data-direction="left">◄</button>
+                  <button class="dpad-btn dpad-stop" data-direction="stop">■</button>
+                  <button class="dpad-btn" data-direction="right">►</button>
+                  <button class="dpad-btn" data-direction="backward">▼</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tactical Map -->
+          <div class="panel map-panel">
+            <div class="panel-header">Tactical Map</div>
+            <div class="panel-body">
+              <svg id="map-svg" viewBox="0 0 500 500"></svg>
+            </div>
+          </div>
+
+          <!-- Camera -->
+          <div class="panel camera-panel">
+            <div class="panel-header">
+              <span>Camera Stream</span>
+              <div class="camera-modes">
+                <button class="cam-mode active" data-mode="rgb">RGB</button>
+                <button class="cam-mode" data-mode="thermal">Thermal</button>
+                <button class="cam-mode" data-mode="depth">Depth</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <canvas id="camera-canvas"></canvas>
+            </div>
+            <div class="camera-controls">
+              <button class="cam-ctrl" id="snapshot-btn">📷 Snapshot</button>
+              <button class="cam-ctrl" id="rec-btn">⏺ REC</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Drivetrain Matrix -->
+        <div class="drivetrain-section">
+          <h3 class="section-title">Drivetrain Matrix</h3>
+          <div class="drivetrain-grid">
+            <div class="wheel-card" id="wheel-fl"><div class="wheel-label">FL</div><div class="wheel-stats"><div class="wheel-stat"><span class="ws-label">RPM</span><span class="ws-val mono" data-field="rpm">0</span></div><div class="wheel-stat"><span class="ws-label">A</span><span class="ws-val mono" data-field="current">0.0</span></div><div class="wheel-stat"><span class="ws-label">°C</span><span class="ws-val mono" data-field="temp">--</span></div></div></div>
+            <div class="wheel-card" id="wheel-ml"><div class="wheel-label">ML</div><div class="wheel-stats"><div class="wheel-stat"><span class="ws-label">RPM</span><span class="ws-val mono" data-field="rpm">0</span></div><div class="wheel-stat"><span class="ws-label">A</span><span class="ws-val mono" data-field="current">0.0</span></div><div class="wheel-stat"><span class="ws-label">°C</span><span class="ws-val mono" data-field="temp">--</span></div></div></div>
+            <div class="wheel-card" id="wheel-rl"><div class="wheel-label">RL</div><div class="wheel-stats"><div class="wheel-stat"><span class="ws-label">RPM</span><span class="ws-val mono" data-field="rpm">0</span></div><div class="wheel-stat"><span class="ws-label">A</span><span class="ws-val mono" data-field="current">0.0</span></div><div class="wheel-stat"><span class="ws-label">°C</span><span class="ws-val mono" data-field="temp">--</span></div></div></div>
+            <div class="wheel-card" id="wheel-fr"><div class="wheel-label">FR</div><div class="wheel-stats"><div class="wheel-stat"><span class="ws-label">RPM</span><span class="ws-val mono" data-field="rpm">0</span></div><div class="wheel-stat"><span class="ws-label">A</span><span class="ws-val mono" data-field="current">0.0</span></div><div class="wheel-stat"><span class="ws-label">°C</span><span class="ws-val mono" data-field="temp">--</span></div></div></div>
+            <div class="wheel-card" id="wheel-mr"><div class="wheel-label">MR</div><div class="wheel-stats"><div class="wheel-stat"><span class="ws-label">RPM</span><span class="ws-val mono" data-field="rpm">0</span></div><div class="wheel-stat"><span class="ws-label">A</span><span class="ws-val mono" data-field="current">0.0</span></div><div class="wheel-stat"><span class="ws-label">°C</span><span class="ws-val mono" data-field="temp">--</span></div></div></div>
+            <div class="wheel-card" id="wheel-rr"><div class="wheel-label">RR</div><div class="wheel-stats"><div class="wheel-stat"><span class="ws-label">RPM</span><span class="ws-val mono" data-field="rpm">0</span></div><div class="wheel-stat"><span class="ws-label">A</span><span class="ws-val mono" data-field="current">0.0</span></div><div class="wheel-stat"><span class="ws-label">°C</span><span class="ws-val mono" data-field="temp">--</span></div></div></div>
+          </div>
+        </div>
+
+        <!-- Telemetry Console -->
+        <div class="telemetry-console">
+          <div class="console-header">
+            <span class="section-title">Telemetry Console</span>
+            <input type="text" id="console-filter" class="filter-input" placeholder="Filter logs…">
+            <button class="console-btn" id="console-clear">Clear</button>
+            <button class="console-btn" id="console-export">Export JSON</button>
+          </div>
+          <div class="console-body" id="console-log"></div>
+        </div>
+      </section>
+
+      <!-- 3D MODEL (DIGITAL TWIN) ─────────────────────────── -->
+      <section id="tab-twin" class="tab-content">
+        <div class="twin-toolbar">
+          <div class="camera-presets">
+            <button class="preset-btn active" data-preset="isometric">Isometric</button>
+            <button class="preset-btn" data-preset="top">Top</button>
+            <button class="preset-btn" data-preset="front">Front</button>
+            <button class="preset-btn" data-preset="side">Side</button>
+            <button class="preset-btn" data-preset="chase">Chase</button>
+          </div>
+          <div class="twin-toggles">
+            <label class="toggle-label"><input type="checkbox" id="toggle-wireframe"> Wireframe</label>
+            <label class="toggle-label"><input type="checkbox" id="toggle-lidar"> LiDAR Cone</label>
+            <label class="toggle-label"><input type="checkbox" id="toggle-axes" checked> XYZ Axes</label>
+          </div>
+        </div>
+        <div id="twin-canvas-container">
+          <canvas id="twin-canvas"></canvas>
+        </div>
+      </section>
+
+      <!-- OPTICS ──────────────────────────────────────────── -->
+      <section id="tab-optics" class="tab-content">
+        <div class="optics-grid">
+          <div class="optics-feed"><canvas class="optics-canvas" id="optics-primary"></canvas><div class="optics-label">Primary 4K</div></div>
+          <div class="optics-feed"><canvas class="optics-canvas" id="optics-rear"></canvas><div class="optics-label">Rear Docking</div></div>
+          <div class="optics-feed"><canvas class="optics-canvas" id="optics-thermal"></canvas><div class="optics-label">Thermal IR</div></div>
+          <div class="optics-feed"><canvas class="optics-canvas" id="optics-depth"></canvas><div class="optics-label">Stereo Depth</div></div>
+        </div>
+      </section>
+
+      <!-- TACTICAL ────────────────────────────────────────── -->
+      <section id="tab-tactical" class="tab-content">
+        <div class="tactical-map-container">
+          <svg id="tactical-map-svg" viewBox="0 0 700 500"></svg>
+        </div>
+        <div class="waypoint-table-container">
+          <table id="waypoint-table">
+            <thead><tr><th>#</th><th>Name</th><th>Lat</th><th>Lon</th><th>Alt (m)</th><th>Radius (m)</th><th>Status</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- POWER ───────────────────────────────────────────── -->
+      <section id="tab-power" class="tab-content">
+        <div class="power-layout">
+          <div class="cell-voltage-section">
+            <h3 class="section-title">Cell Voltages (6S LiPo)</h3>
+            <div class="cell-bars">
+              <div class="cell-bar" id="cell-1"><div class="bar-track"><div class="bar-fill"></div></div><div class="cell-label mono">S1</div><div class="cell-value mono">-.-- V</div></div>
+              <div class="cell-bar" id="cell-2"><div class="bar-track"><div class="bar-fill"></div></div><div class="cell-label mono">S2</div><div class="cell-value mono">-.-- V</div></div>
+              <div class="cell-bar" id="cell-3"><div class="bar-track"><div class="bar-fill"></div></div><div class="cell-label mono">S3</div><div class="cell-value mono">-.-- V</div></div>
+              <div class="cell-bar" id="cell-4"><div class="bar-track"><div class="bar-fill"></div></div><div class="cell-label mono">S4</div><div class="cell-value mono">-.-- V</div></div>
+              <div class="cell-bar" id="cell-5"><div class="bar-track"><div class="bar-fill"></div></div><div class="cell-label mono">S5</div><div class="cell-value mono">-.-- V</div></div>
+              <div class="cell-bar" id="cell-6"><div class="bar-track"><div class="bar-fill"></div></div><div class="cell-label mono">S6</div><div class="cell-value mono">-.-- V</div></div>
+            </div>
+          </div>
+          <div class="power-dist-section">
+            <h3 class="section-title">Power Distribution</h3>
+            <div class="power-breakdown">
+              <div class="power-row"><span class="power-label">Motors</span><div class="power-bar-track"><div class="power-bar-fill" data-subsys="motors"></div></div><span class="power-pct mono" data-subsys="motors">0 W</span></div>
+              <div class="power-row"><span class="power-label">Compute</span><div class="power-bar-track"><div class="power-bar-fill" data-subsys="compute"></div></div><span class="power-pct mono" data-subsys="compute">0 W</span></div>
+              <div class="power-row"><span class="power-label">Sensors</span><div class="power-bar-track"><div class="power-bar-fill" data-subsys="sensors"></div></div><span class="power-pct mono" data-subsys="sensors">0 W</span></div>
+              <div class="power-row"><span class="power-label">Comms</span><div class="power-bar-track"><div class="power-bar-fill" data-subsys="comms"></div></div><span class="power-pct mono" data-subsys="comms">0 W</span></div>
+              <div class="power-row"><span class="power-label">Aux</span><div class="power-bar-track"><div class="power-bar-fill" data-subsys="aux"></div></div><span class="power-pct mono" data-subsys="aux">0 W</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- LOGS ────────────────────────────────────────────── -->
+      <section id="tab-logs" class="tab-content">
+        <div class="logs-toolbar">
+          <input type="text" id="logs-filter" class="filter-input" placeholder="Filter logs…">
+          <select id="logs-level-select">
+            <option value="ALL">ALL</option>
+            <option value="INFO">INFO</option>
+            <option value="WARN">WARN</option>
+            <option value="ERROR">ERROR</option>
+          </select>
+          <button class="console-btn" id="logs-clear">Clear</button>
+          <button class="console-btn" id="logs-export">Export JSON</button>
+        </div>
+        <div class="logs-body" id="full-log"></div>
+      </section>
+
+      <!-- CONFIG ──────────────────────────────────────────── -->
+      <section id="tab-config" class="tab-content">
+        <div class="config-layout">
+          <div class="config-section pid-section">
+            <h3 class="section-title">PID Tuning</h3>
+            <div class="pid-groups">
+              <div class="pid-group"><h4>Steering</h4><label>Kp <input type="number" class="config-input mono" value="1.20" step="0.01"></label><label>Ki <input type="number" class="config-input mono" value="0.01" step="0.001"></label><label>Kd <input type="number" class="config-input mono" value="0.50" step="0.01"></label></div>
+              <div class="pid-group"><h4>Throttle</h4><label>Kp <input type="number" class="config-input mono" value="2.00" step="0.01"></label><label>Ki <input type="number" class="config-input mono" value="0.05" step="0.001"></label><label>Kd <input type="number" class="config-input mono" value="0.30" step="0.01"></label></div>
+              <div class="pid-group"><h4>Heading</h4><label>Kp <input type="number" class="config-input mono" value="1.50" step="0.01"></label><label>Ki <input type="number" class="config-input mono" value="0.02" step="0.001"></label><label>Kd <input type="number" class="config-input mono" value="0.40" step="0.01"></label></div>
+            </div>
+            <button class="apply-btn" id="apply-pid">Apply PID</button>
+          </div>
+          <div class="config-section safety-section">
+            <h3 class="section-title">Safety &amp; Geofence</h3>
+            <div class="safety-inputs">
+              <label>Geofence Radius <input type="number" class="config-input mono" value="500" step="10"> m</label>
+              <label>Max Speed <input type="number" class="config-input mono" value="2.5" step="0.1"> m/s</label>
+              <label>RTL Altitude <input type="number" class="config-input mono" value="0" step="1"> m</label>
+              <label>Failsafe Timeout <input type="number" class="config-input mono" value="30" step="1"> s</label>
+            </div>
+            <button class="apply-btn" id="apply-safety">Apply Safety</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- MODALS                                                 -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="arm-modal" class="modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <h3 class="modal-title" id="arm-modal-title">Confirm ARM</h3>
+      <p class="modal-message" id="arm-modal-msg">Arming the rover enables motor output. Ensure area is clear.</p>
+      <div class="modal-actions">
+        <button class="modal-btn modal-confirm" id="arm-confirm">CONFIRM ARM</button>
+        <button class="modal-btn modal-cancel" id="arm-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="estop-modal" class="modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content estop-modal-content">
+      <h3 class="modal-title">⚠ EMERGENCY STOP</h3>
+      <p class="modal-message">This will immediately cut all motor power and halt the rover.</p>
+      <div class="modal-actions">
+        <button class="modal-btn modal-estop-confirm" id="estop-confirm">CONFIRM E-STOP</button>
+        <button class="modal-btn modal-cancel" id="estop-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
